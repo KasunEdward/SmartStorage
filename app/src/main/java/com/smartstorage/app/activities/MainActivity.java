@@ -5,13 +5,17 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentSender;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.support.customtabs.CustomTabsIntent;
 import android.support.design.widget.CollapsingToolbarLayout;
 import android.support.design.widget.CoordinatorLayout;
@@ -24,6 +28,7 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -31,6 +36,10 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.drive.Drive;
 import com.smartstorage.app.R;
 import com.smartstorage.app.recycler.Adapter;
 import com.smartstorage.app.ui.InputDialog;
@@ -44,7 +53,14 @@ import java.util.Locale;
 
 import static com.smartstorage.app.utils.FileUtils.*;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks,GoogleApiClient.OnConnectionFailedListener{
+    final Context context=this;
+
+    private static GoogleApiClient mGoogleApiClient;
+    private static final String GOOGLE_DRIVE_TAG="Google Drive";
+    private static final String DROP_BOX_TAG="DropBox";
+    private static final int REQUEST_CODE_RESOLUTION = 1;
+    private static final  int REQUEST_CODE_OPENER = 2;
 
     private static final String SAVED_DIRECTORY = "com.calintat.explorer.SAVED_DIRECTORY";
 
@@ -72,6 +88,8 @@ public class MainActivity extends AppCompatActivity {
 
     private String type;
 
+    SharedPreferences prefs=null;
+
     //----------------------------------------------------------------------------------------------
 
     @Override
@@ -81,7 +99,16 @@ public class MainActivity extends AppCompatActivity {
 
         super.onCreate(savedInstanceState);
 
+
         setContentView(R.layout.activity_main);
+        prefs=getSharedPreferences("com.smartstorage..app",MODE_PRIVATE);
+//        mGoogleApiClient = new GoogleApiClient.Builder(this)
+//                .addApi(Drive.API)
+//                .addScope(Drive.SCOPE_FILE)
+//                .addConnectionCallbacks(this)
+//                .addOnConnectionFailedListener(this)
+//                .build();
+//        mGoogleApiClient.connect();
 
         initAppBarLayout();
 
@@ -151,10 +178,30 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onResume() {
+        if(prefs.getBoolean("firstrun",true)){
+            setDriveAccount();
+            prefs.edit().putBoolean("firstrun",false).commit();
+        }
 
         if (adapter != null) adapter.refresh();
 
         super.onResume();
+//        if (mGoogleApiClient == null) {
+//
+//            /**
+//             * Create the API client and bind it to an instance variable.
+//             * We use this instance as the callback for connection and connection failures.
+//             * Since no account name is passed, the user is prompted to choose.
+//             */
+//            mGoogleApiClient = new GoogleApiClient.Builder(this)
+//                    .addApi(Drive.API)
+//                    .addScope(Drive.SCOPE_FILE)
+//                    .addConnectionCallbacks(this)
+//                    .addOnConnectionFailedListener(this)
+//                    .build();
+//        }
+//
+//        mGoogleApiClient.connect();
     }
 
     @Override
@@ -861,6 +908,84 @@ public class MainActivity extends AppCompatActivity {
 
         startActivity(intent);
     }
+    //----------------------------------------------------------------------------------------------
+
+    private void setDriveAccount(){
+        Log.e("Smart storge","first run");
+        CharSequence drivers[]=new CharSequence[]{"Google Drive","DropBox"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        builder.setTitle("Pleas a choose a drive....")
+                .setItems(drivers, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if(which==0){
+                            Log.i(GOOGLE_DRIVE_TAG,"Connecting to Google Drive............");
+                            googleDriveConnect();
+                        }
+                        else if(which==1){
+                            Log.i(DROP_BOX_TAG,"Connecting to DropBox............");
+                            dropBoxConnect();
+                        }
+                    }
+                });
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    private void dropBoxConnect() {
+
+    }
+
+    private void googleDriveConnect(){
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addApi(Drive.API)
+                .addScope(Drive.SCOPE_FILE)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .build();
+        mGoogleApiClient.connect();
+    }
+
+
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        Log.d(GOOGLE_DRIVE_TAG,"Connected");
+    }
+
+    @Override
+    public void onConnectionSuspended(int i) {
+        Log.d(GOOGLE_DRIVE_TAG,"Suspended");
+    }
+
+    @Override
+    public void onConnectionFailed(@Nullable ConnectionResult connectionResult) {
+        Log.d(GOOGLE_DRIVE_TAG,"Connection failed");
+        // Called whenever the API client fails to connect.
+        Log.i(GOOGLE_DRIVE_TAG, "GoogleApiClient connection failed:" + connectionResult.toString());
+
+        if (!connectionResult.hasResolution()) {
+
+            // show the localized error dialog.
+            GoogleApiAvailability.getInstance().getErrorDialog(this, connectionResult.getErrorCode(), 0).show();
+            return;
+        }
+
+        /**
+         *  The failure has a resolution. Resolve it.
+         *  Called typically when the app is not yet authorized, and an  authorization
+         *  dialog is displayed to the user.
+         */
+
+        try {
+
+           connectionResult.startResolutionForResult(this, REQUEST_CODE_RESOLUTION);
+
+        } catch (IntentSender.SendIntentException e) {
+
+            Log.e(GOOGLE_DRIVE_TAG, "Exception while starting resolution activity&", e);
+        }
+    }
+
 
     //----------------------------------------------------------------------------------------------
 
