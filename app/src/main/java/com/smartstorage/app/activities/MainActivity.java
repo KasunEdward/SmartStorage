@@ -55,6 +55,8 @@ import com.google.android.gms.drive.query.Filters;
 import com.google.android.gms.drive.query.Query;
 import com.google.android.gms.drive.query.SearchableField;
 import com.smartstorage.app.R;
+import com.smartstorage.app.db.DatabaseHandler;
+import com.smartstorage.app.db.FileDetails;
 import com.smartstorage.app.recycler.Adapter;
 import com.smartstorage.app.ui.InputDialog;
 import com.smartstorage.app.utils.FileUtils;
@@ -1216,57 +1218,22 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         fileList.add("/storage/emulated/0/DCIM/Camera/20170531_130417.jpg");
         fileList.add("/storage/emulated/0/DCIM/Screenshots/Screenshot_2017-08-08-18-29-01.png");
         fileList.add("/storage/emulated/0/Download/UoM-Virtual-Server-request-form-Final-Year-Projects.doc");
-        fileList.add("/storage/emulated/0/Download/SL-Netacad-Hackathon-2017.pdf");
+        fileList.add("/storage/emulated/0/Download/2017.pdf");
 
         return fileList;
     }
     ArrayList<String> fileList=getFiles();
 
     public void onBtnClick(View v){
-//        for(int i=0;i<50000;i++){
-//            Log.e(GOOGLE_DRIVE_TAG,String.valueOf(i));
-//        }
-        for(int i=0;i<fileList.size();i++){
+
+        DatabaseHandler db=DatabaseHandler.getDbInstance(context);
+        for(int i=0;i<fileList.size();i++) {
+            FileDetails fileDetails=new FileDetails(fileList.get(i),"no_link_yet");
+            db.addFileDetails(fileDetails);
             copyFileToGoogleDrive(fileList.get(i));
         }
-
-//        fileOperation=true;
-//        Drive.DriveApi.newDriveContents(mGoogleApiClient)
-//                .setResultCallback(driveContentsCallback);
-
+        db.getFileDetails();
     }
-
-
-
-//    final ResultCallback<DriveApi.DriveContentsResult> driveContentsCallback =
-//            new ResultCallback<DriveApi.DriveContentsResult>() {
-//                @Override
-//                public void onResult(DriveApi.DriveContentsResult result) {
-//
-//                    if (result.getStatus().isSuccess()) {
-//
-//                        if (fileOperation == true) {
-//
-//
-//                            for(int i=0;i<fileList.size();i++){
-//                                String fileUrl=fileList.get(i);
-//                                copyFileToGoogleDrive(result,fileUrl);
-//                            }
-//
-//
-//                        } else {
-////                            DownloadFile();
-//
-//                        }
-//                    }
-//
-//                }
-//    };
-//
-
-
-
-
 
     public void copyFileToGoogleDrive(String fileUrl){
         Drive.DriveApi.newDriveContents(mGoogleApiClient)
@@ -1308,7 +1275,6 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                                         .setTitle(fileName)
                                         .setMimeType(fileType)
                                         .setStarred(true).build();
-
                                 // create a file in root folder
                                 DriveFolder folder = driveId.asDriveFolder();
                                 folder.createFile(mGoogleApiClient, changeSet, driveContents).setResultCallback(fileCallback);
